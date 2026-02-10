@@ -6,7 +6,7 @@ Interactive MCP Client for Agent-to-Agent Communication Tutorial
 import asyncio
 import argparse
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
@@ -16,7 +16,7 @@ import mcp.types as types
 from rich.console import Console
 from rich.panel import Panel
 
-from .utils import TokenManager, cast_input_value
+from .utils import TokenManager, cast_input_value, identify_tool_for_task
 
 console = Console()
 
@@ -84,8 +84,8 @@ async def execute_tool_with_resumption(session, command: str, args: dict, get_se
     return result
 
 
-async def interactive_mode(server_url: str):
-    """Run interactive mode with tool exploration."""
+async def interactive_mode(server_url: str, task: Optional[str] = None):
+    """Run interactive mode or autonomous task mode."""
     # Configure logging to suppress noisy SSE parsing errors
     logging.getLogger('mcp.client.streamable_http').setLevel(logging.ERROR)
     
@@ -299,12 +299,22 @@ async def interactive_mode(server_url: str):
                     
                     display_tools(tools)
                 
-                # Interactive command loop
-                console.print("\n[dim]Commands: [tool_name], 'list', 'help', 'clean-tokens', 'quit'[/dim]")
+                # Autonomous mode if task is provided
+                if task:
+                    console.print(f"[bold yellow]🤖 Autonomous Task:[/bold yellow] {task}")
+                    command = identify_tool_for_task(task, tools)
+                    if not command:
+                        console.print(f"[red]❌ Could not identify appropriate tool for task: '{task}'[/red]")
+                        return
+                    console.print(f"[green]✅ Identified tool:[/green] [cyan]{command}[/cyan]")
+                else:
+                    # Interactive command loop
+                    console.print("\n[dim]Commands: [tool_name], 'list', 'help', 'clean-tokens', 'quit'[/dim]")
                 
                 while True:
                     try:
-                        command = console.input("\n[bold blue]> [/bold blue]").strip()
+                        if not task:
+                            command = console.input("\n[bold blue]> [/bold blue]").strip()
                         
                         if command.lower() in ['quit', 'exit', 'q']:
                             console.print("[yellow]👋 Goodbye![/yellow]")
@@ -374,6 +384,9 @@ async def interactive_mode(server_url: str):
                                         if token_manager.delete_tokens():
                                             console.print(f"[dim]🧹 Cleaned up resumption tokens[/dim]")
                                         
+                                        if task:
+                                            return  # Task completed, exit the function
+
                                     except Exception as tool_error:
                                         error_msg = str(tool_error)
                                         if "ValidationError" in error_msg and "JSON" in error_msg:
@@ -383,6 +396,8 @@ async def interactive_mode(server_url: str):
                                                 console.print(f"[dim]🧹 Cleaned up resumption tokens[/dim]")
                                         else:
                                             console.print(f"[red]❌ Tool failed: {tool_error}[/red]")
+                                            if task:
+                                                return
                             else:
                                 # No parameters needed, execute tool
                                 console.print(f"[cyan]🔧 Executing {command}...[/cyan]")
@@ -398,8 +413,14 @@ async def interactive_mode(server_url: str):
                                     if token_manager.delete_tokens():
                                         console.print(f"[dim]🧹 Cleaned up resumption tokens[/dim]")
                                     
+                                    if task:
+                                        return  # Task completed, exit the function
+
                                 except Exception as tool_error:
                                     error_msg = str(tool_error)
+                                    if task:
+                                        console.print(f"[red]❌ Autonomous task failed: {error_msg}[/red]")
+                                        return
                                     if "ValidationError" in error_msg and "JSON" in error_msg:
                                         console.print(f"[yellow]⚠️ Tool completed with connection issues, but likely succeeded[/yellow]")
                                         # Even if there was a connection issue, task likely completed
@@ -411,6 +432,8 @@ async def interactive_mode(server_url: str):
                         else:
                             console.print(f"[red]❌ Unknown command: '{command}'[/red]")
                             console.print("[dim]Type 'list' to see available tools or 'help' for commands[/dim]")
+                            if task:
+                                return
                             
                     except KeyboardInterrupt:
                         console.print("\n[yellow]👋 Interrupted![/yellow]")
@@ -425,6 +448,7 @@ async def main():
     parser = argparse.ArgumentParser(description="Interactive MCP Client")
     parser.add_argument("--url", default="http://127.0.0.1:8006/mcp", help="MCP server URL")
     parser.add_argument("--clean-tokens", action="store_true", help="Delete existing resumption tokens and start fresh")
+    parser.add_argument("--task", help="Execute a specific task autonomously")
     
     args = parser.parse_args()
     
@@ -437,7 +461,7 @@ async def main():
             console.print("[yellow]No tokens to clear[/yellow]")
         return
     
-    await interactive_mode(args.url)
+    await interactive_mode(args.url, args.task)
 
 
 if __name__ == "__main__":

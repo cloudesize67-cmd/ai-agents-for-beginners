@@ -9,11 +9,11 @@ sys.modules["rich.console"] = mock_rich
 import pytest
 # We need to use absolute import or adjust path if running with pytest from root
 try:
-    from .utils import cast_input_value
+    from .utils import cast_input_value, identify_tool_for_task
 except ImportError:
     import os
     sys.path.append(os.path.dirname(__file__))
-    from utils import cast_input_value
+    from utils import cast_input_value, identify_tool_for_task
 
 def test_cast_input_value_integer():
     assert cast_input_value("123", {"type": "integer"}) == 123
@@ -52,3 +52,21 @@ def test_cast_input_value_default_type():
 def test_cast_input_value_empty():
     assert cast_input_value("", {"type": "integer"}) == ""
     assert cast_input_value(None, {"type": "integer"}) is None
+
+def test_identify_tool_for_task():
+    class MockTool:
+        def __init__(self, name):
+            self.name = name
+
+    tools = [MockTool("travel_agent"), MockTool("research_agent"), MockTool("long_running_agent")]
+
+    # Keyword matching
+    assert identify_tool_for_task("book a flight to Paris", tools) == "travel_agent"
+    assert identify_tool_for_task("research AI trends", tools) == "research_agent"
+    assert identify_tool_for_task("run a long test", tools) == "long_running_agent"
+
+    # Name matching
+    assert identify_tool_for_task("call travel_agent", tools) == "travel_agent"
+
+    # No match
+    assert identify_tool_for_task("wash the car", tools) is None
