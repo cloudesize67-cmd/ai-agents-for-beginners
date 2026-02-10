@@ -29,3 +29,4 @@ mcp[cli]
 # Other dependencies
 a2a-sdk
 numpy
+mem0ai
