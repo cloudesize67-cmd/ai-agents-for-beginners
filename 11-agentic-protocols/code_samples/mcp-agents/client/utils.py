@@ -8,7 +8,7 @@ including token persistence and session resumption.
 
 import json
 import os
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from rich.console import Console
 
@@ -37,6 +37,38 @@ def cast_input_value(value: str, prop_info: dict):
     except ValueError:
         # If casting fails, return the original string
         return value
+
+
+def identify_tool_for_task(task: str, tools: List[Any]) -> Optional[str]:
+    """Identify the best tool for a task based on keyword matching."""
+    task_lower = task.lower()
+
+    # Simple keyword mapping for demo purposes
+    keywords = {
+        "travel": "travel_agent",
+        "book": "travel_agent",
+        "flight": "travel_agent",
+        "destination": "travel_agent",
+        "research": "research_agent",
+        "topic": "research_agent",
+        "analyze": "research_agent",
+        "study": "research_agent",
+        "long": "long_running_agent",
+        "wait": "long_running_agent",
+        "test": "long_running_agent"
+    }
+
+    # Check for direct keyword matches
+    for keyword, tool_name in keywords.items():
+        if keyword in task_lower:
+            return tool_name
+
+    # Fallback: check if any tool name is in the task
+    for tool in tools:
+        if tool.name.lower() in task_lower:
+            return tool.name
+
+    return None
 
 
 class TokenManager:
