@@ -82,7 +82,7 @@ def hotel_booking(destination: Annotated[str, "The destination city to check for
     Simulates checking hotel room availability.
 
     For demo purposes:
-    - Stockholm, Seattle, Tokyo have rooms
+    - Stockholm, Seattle, Tokyo, London, Amsterdam have rooms
     - All other cities don't have rooms
 
     Returns:
